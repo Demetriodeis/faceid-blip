@@ -1,0 +1,5 @@
+node_modules/
+api/local.settings.json
+api/.data/
+.data/
+.DS_Store

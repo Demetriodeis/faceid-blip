@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<title>Biometria Facial</title>
+<style>
+  :root { --ok: #00ffcc; --err: #ff5555; --bg: #121212; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; background: #1a1a1a; color: #fff;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+  body { display: flex; justify-content: center; align-items: center; }
+
+  .app { position: relative; width: 100%; max-width: 420px; height: 100dvh; max-height: 780px;
+    background: #000; overflow: hidden; border-radius: 0; }
+  @media (min-width: 440px) { .app { border-radius: 24px; box-shadow: 0 20px 50px rgba(0,0,0,.5); } }
+
+  video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+  .mask { position: absolute; inset: 0; pointer-events: none; z-index: 10;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0) 35%, rgba(0,0,0,.82) 62%); }
+
+  .guide { position: absolute; top: 46%; left: 50%; transform: translate(-50%, -50%);
+    width: 260px; height: 330px; border-radius: 50%; z-index: 11;
+    border: 2px dashed rgba(255,255,255,.35); transition: border-color .3s, box-shadow .3s; }
+  .guide.ok { border: 2px solid var(--ok); box-shadow: 0 0 20px rgba(0,255,204,.25); }
+  .guide.bad { border-color: var(--err); }
+
+  .ring { position: absolute; top: 46%; left: 50%; width: 280px; height: 350px; z-index: 12;
+    transform: translate(-50%, -50%) rotate(-90deg); pointer-events: none; }
+  .ring ellipse { fill: none; stroke: var(--ok); stroke-width: 6; stroke-linecap: round; }
+
+  .status { position: absolute; left: 0; right: 0; bottom: max(32px, env(safe-area-inset-bottom));
+    z-index: 20; text-align: center; padding: 0 20px; }
+  .status h1 { font-size: 18px; margin: 0 0 6px; font-weight: 600; text-shadow: 0 2px 4px #000; }
+  .status p { font-size: 14px; margin: 0; color: #ccc; text-shadow: 0 1px 2px #000; }
+
+  .overlay { position: absolute; inset: 0; z-index: 40; display: none; flex-direction: column;
+    justify-content: center; align-items: center; text-align: center; padding: 24px;
+    background: rgba(0,0,0,.94); }
+  .overlay.show { display: flex; }
+  .overlay h2 { margin: 0 0 8px; font-size: 22px; }
+  .overlay p { margin: 0 0 20px; font-size: 15px; line-height: 1.45; opacity: .9; max-width: 320px; }
+  .overlay h2.ok { color: var(--ok); } .overlay h2.err { color: var(--err); }
+
+  .spinner { width: 42px; height: 42px; border-radius: 50%; margin-bottom: 18px;
+    border: 4px solid rgba(255,255,255,.2); border-top-color: var(--ok); animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .btn { display: inline-flex; justify-content: center; align-items: center; width: 100%; max-width: 290px;
+    padding: 14px 24px; margin-top: 10px; border: 0; border-radius: 50px; cursor: pointer;
+    font-size: 16px; font-weight: 700; color: #fff; background: #2a7de1; text-decoration: none; }
+  .btn.green { background: #25d366; } .btn.ghost { background: #333; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  form { width: 100%; max-width: 310px; text-align: left; }
+  label.field { display: block; font-size: 13px; opacity: .85; margin-bottom: 6px; }
+  input[type=text] { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid #444;
+    background: #1e1e1e; color: #fff; font-size: 16px; margin-bottom: 14px; }
+  .consent { display: flex; gap: 10px; font-size: 12.5px; line-height: 1.4; opacity: .9; margin-bottom: 6px; }
+  .consent input { margin-top: 2px; flex: none; width: 18px; height: 18px; }
+</style>
+</head>
+<body>
+<main class="app">
+  <video id="video" playsinline muted></video>
+  <div class="mask"></div>
+  <div class="guide" id="guide"></div>
+  <svg class="ring" viewBox="0 0 280 350" aria-hidden="true">
+    <ellipse id="ring" cx="140" cy="175" rx="130" ry="165"/>
+  </svg>
+
+  <div class="status" id="statusBox" role="status" aria-live="polite">
+    <h1 id="title">Carregando...</h1>
+    <p id="desc">Preparando a verificação</p>
+  </div>
+
+  <!-- processando -->
+  <section class="overlay" id="busy">
+    <div class="spinner"></div>
+    <h2 id="busyTitle">Verificando...</h2>
+    <p id="busyDesc">Só um instante.</p>
+  </section>
+
+  <!-- rosto não encontrado -->
+  <section class="overlay" id="notFound">
+    <h2 id="nfTitle">Não encontramos seu cadastro</h2>
+    <p id="nfDesc">Você pode fazer o cadastro agora. Leva menos de um minuto.</p>
+    <button class="btn" id="goEnroll" type="button">Fazer cadastro</button>
+    <button class="btn ghost" id="retry" type="button">Tentar novamente</button>
+  </section>
+
+  <!-- formulário de cadastro -->
+  <section class="overlay" id="enrollForm">
+    <h2>Cadastro</h2>
+    <p>Informe seu nome e autorize o uso do seu rosto para identificação.</p>
+    <form id="form" autocomplete="off">
+      <label class="field" for="name">Nome completo</label>
+      <input type="text" id="name" maxlength="80" required>
+      <label class="consent">
+        <input type="checkbox" id="consent">
+        <span>Autorizo o uso do meu rosto (dado biométrico) somente para me identificar neste serviço.
+        Será guardada uma representação numérica do rosto, não a foto.</span>
+      </label>
+      <button class="btn" id="startEnroll" type="submit" disabled>Começar captura</button>
+    </form>
+  </section>
+
+  <!-- resultado -->
+  <section class="overlay" id="result">
+    <h2 id="resTitle"></h2>
+    <p id="resDesc"></p>
+    <a class="btn green" id="waBtn" href="#" target="_blank" rel="noopener noreferrer" hidden>Voltar ao WhatsApp</a>
+    <button class="btn ghost" id="again" type="button" hidden>Tentar novamente</button>
+  </section>
+</main>
+
+<script src="config.js"></script>
+<script src="lib/face-api.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

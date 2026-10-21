@@ -1,0 +1,14 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "AzureWebJobsStorage": "",
+    "STORE_DRIVER": "file",
+    "FILE_STORE_PATH": ".data/faces.json",
+    "MATCH_THRESHOLD": "0.5",
+    "BLIP_HTTP_URL": "",
+    "BLIP_KEY": "",
+    "LINK_SECRET": "",
+    "REQUIRE_SAME_CONTACT": "false"
+  }
+}

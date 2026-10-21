@@ -1,0 +1,17 @@
+{
+  "name": "faceid-blip-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "API de identificação facial (embeddings) para o fluxo Blip",
+  "main": "src/functions/*.js",
+  "scripts": {
+    "start": "func start",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.5.0"
+  }
+}
