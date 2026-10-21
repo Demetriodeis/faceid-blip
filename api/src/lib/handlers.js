@@ -2,7 +2,7 @@
 
 const { isDescriptor, averageDescriptors, findBestMatch } = require('./match');
 const { verifyLink, validContactId, signId, safeEqual } = require('./security');
-const { sendContinueMessage } = require('./blip');
+const { continueConversation } = require('./blip');
 
 const MAX_SAMPLES = 8;
 
@@ -21,7 +21,7 @@ function checkLink(body, env) {
 
 /**
  * POST /api/identify  { id, sig?, descriptor }
- * -> { match: true, name, distance, messageSent } | { match: false, distance }
+ * -> { match: true, name, distance, stateSet, messageSent } | { match: false, distance }
  */
 async function identify(body, { store, env = process.env, fetchImpl }) {
   const bad = checkLink(body, env);
@@ -41,7 +41,7 @@ async function identify(body, { store, env = process.env, fetchImpl }) {
     return { status: 200, body: { match: false, distance: result.distance, reason: 'other_contact' } };
   }
 
-  const messageSent = await sendContinueMessage({
+  const { stateSet, messageSent } = await continueConversation({
     env,
     fetchImpl,
     contactId: body.id,
@@ -49,7 +49,7 @@ async function identify(body, { store, env = process.env, fetchImpl }) {
   });
   return {
     status: 200,
-    body: { match: true, name: result.person.name, distance: result.distance, sameContact, messageSent },
+    body: { match: true, name: result.person.name, distance: result.distance, sameContact, stateSet, messageSent },
   };
 }
 

@@ -30,7 +30,7 @@ web/                      front estático (Static Web Apps)
 api/                      Azure Functions (Node 20, modelo v4)
   src/functions/          identify.js, enroll.js, link.js
   src/lib/                match, store (Blip Bucket / arquivo), blip, handlers, security
-  test/                   20 testes (node --test)
+  test/                   29 testes (node --test)
 ```
 
 ## Variáveis de ambiente (Application Settings da Function)
@@ -43,6 +43,12 @@ api/                      Azure Functions (Node 20, modelo v4)
 | `MATCH_THRESHOLD` | distância máxima para considerar "mesma pessoa" (padrão `0.5`) |
 | `LINK_SECRET` | se definida, só links assinados (`&sig=`) são aceitos — **recomendado** |
 | `REQUIRE_SAME_CONTACT` | `true` = o rosto só identifica se pertence ao contato do link |
+| `BLIP_ROUTER_KEY` | chave do bot que está no canal (o **roteador**, se houver). Usada nos comandos e mensagens; se vazia, usa `BLIP_KEY` |
+| `BLIP_FLOW_ID` | identificador do fluxo (Builder → Configurações gerais). Ativa o posicionamento de estado junto com `BLIP_NEXT_STATE_ID` |
+| `BLIP_NEXT_STATE_ID` | ID do bloco onde o usuário deve parar após a biometria (Builder: botão direito no bloco → copiar ID) |
+| `BLIP_SUBBOT_ID` | só para roteador + subbots: ID do subbot de destino (passo `Master-State`) |
+| `BLIP_NEXT_MESSAGE` | texto da próxima mensagem do bot; aceita `{nome}`. Vazio = botão "Continuar" |
+| `BLIP_IDENTITY_DOMAIN` | sufixo da identidade do contato (padrão `wa.gw.msging.net`) |
 | `LINK_API_KEY` | chave que o bot usa para chamar `/api/link` (header `x-api-key`). **Diferente** do `LINK_SECRET` |
 | `PUBLIC_BASE_URL` | endereço público do site, ex.: `https://<site>.azurestaticapps.net` |
 
@@ -85,6 +91,21 @@ curl -X POST https://<seu-site>.azurestaticapps.net/api/link \
   -H "Content-Type: application/json" -H "x-api-key: <LINK_API_KEY>" \
   -d '{"id":"5511999990000"}'
 ```
+
+## Continuar o atendimento sozinho (estado + mensagem)
+
+Quando o rosto é reconhecido, a Function pode continuar a conversa **sem o usuário tocar em nada**:
+
+1. **Posiciona o usuário** no bloco configurado, com o comando `set /contexts/<identidade>/stateid@<fluxo>` (com `Master-State` antes, só se usar roteador + subbot).
+2. **Envia a próxima mensagem** do bot (`BLIP_NEXT_MESSAGE`, texto simples) para `<número>@wa.gw.msging.net`.
+
+O estado vem **antes** da mensagem. Se o posicionamento estiver configurado e falhar, a mensagem **não é enviada** (ela levaria a resposta para o bloco errado) e a resposta de `identify` traz `stateSet: false`.
+
+**Regra da Blip:** ao posicionar o usuário, o conteúdo do bloco de destino **não é exibido**; só as saídas e ações dele rodam depois da próxima resposta. Portanto o bloco de destino deve ser um bloco de **entrada, sem mensagens**, com uma condição de saída que trate a resposta do usuário à mensagem enviada. Com roteador e subbots, ative *Use Router context* nas configurações de cada subbot e use o token do roteador.
+
+Sem `BLIP_FLOW_ID`/`BLIP_NEXT_STATE_ID`, nada de estado é alterado e o comportamento é o antigo (só a mensagem). Sem `BLIP_NEXT_MESSAGE`, a mensagem é o botão "Continuar".
+
+Para conferir em produção, abra o DevTools do navegador (aba *Network*) e veja a resposta de `/api/identify`: `stateSet` (`true`, `false` ou `null` se não configurado) e `messageSent`.
 
 ## Rodar local
 

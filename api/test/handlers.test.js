@@ -123,7 +123,7 @@ test('envia mensagem à Blip no match, sem vazar chave na resposta', async () =>
   assert.equal(calls[0].url, 'https://contrato.http.msging.net/messages');
   assert.equal(calls[0].init.headers.Authorization, 'Key TOKEN123');
   const sent = JSON.parse(calls[0].init.body);
-  assert.equal(sent.to, ID);
+  assert.equal(sent.to, `${ID}@wa.gw.msging.net`); // número puro vira identidade do WhatsApp
   assert.equal(sent.content.interactive.action.buttons[0].reply.title, 'Continuar');
   assert.ok(!JSON.stringify(r.body).includes('TOKEN123'));
 
