@@ -10,7 +10,7 @@ const CFG = Object.assign(
 );
 // Limites de qualidade da imagem (ajustáveis em config.js > quality).
 const QC = Object.assign(
-  { minScore: 0.7, minLuma: 70, maxLuma: 205, minContrast: 28, minSharp: 30 },
+  { minScore: 0.7, minLuma: 70, maxLuma: 205, minContrast: 28, minSharp: 30, minFrameLuma: 60 },
   CFG.quality || {}
 );
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -183,8 +183,27 @@ function judgeQuality(det) {
   return { ok: true, q };
 }
 
+/** Brilho médio do quadro inteiro (usado quando nenhum rosto é detectado). */
+function frameLuma() {
+  const c = frameLuma.c || (frameLuma.c = document.createElement('canvas'));
+  c.width = 32;
+  c.height = 24;
+  const x = c.getContext('2d', { willReadFrequently: true });
+  x.drawImage(video, 0, 0, 32, 24);
+  const d = x.getImageData(0, 0, 32, 24).data;
+  let sum = 0;
+  for (let i = 0; i < d.length; i += 4) sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  return sum / (d.length / 4);
+}
+
 function judge(det) {
-  if (!det) return { ok: false, msg: 'Posicione o rosto em frente à câmera' };
+  if (!det) {
+    const l = frameLuma();
+    if (DEBUG) console.log('sem rosto; brilho do quadro', Math.round(l));
+    if (l < QC.minFrameLuma) return { ok: false, msg: 'Ambiente escuro. Vá para um local mais iluminado' };
+    if (l > QC.maxLuma) return { ok: false, msg: 'Luz forte demais. Evite luz direta na câmera' };
+    return { ok: false, msg: 'Posicione o rosto em frente à câmera' };
+  }
   const b = det.relativeBox;
   const cx = b.x + b.width / 2;
   const cy = b.y + b.height / 2;

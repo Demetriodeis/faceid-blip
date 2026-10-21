@@ -14,5 +14,6 @@ window.FACEID_CONFIG = {
   // console para calibrar com a câmera dos seus usuários).
   //  minLuma/maxLuma: brilho médio do rosto (0-255) · minContrast: contraste
   //  minSharp: nitidez (borrão/movimento) · minScore: confiança do detector (0-1)
-  quality: { minScore: 0.7, minLuma: 70, maxLuma: 205, minContrast: 28, minSharp: 30 },
+  //  minFrameLuma: brilho do quadro todo quando nenhum rosto é achado (aviso de escuro)
+  quality: { minScore: 0.7, minLuma: 70, maxLuma: 205, minContrast: 28, minSharp: 30, minFrameLuma: 60 },
 };
