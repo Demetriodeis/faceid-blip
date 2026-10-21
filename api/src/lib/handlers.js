@@ -1,7 +1,7 @@
 'use strict';
 
 const { isDescriptor, averageDescriptors, findBestMatch } = require('./match');
-const { verifyLink, validContactId } = require('./security');
+const { verifyLink, validContactId, signId, safeEqual } = require('./security');
 const { sendContinueMessage } = require('./blip');
 
 const MAX_SAMPLES = 8;
@@ -112,4 +112,4 @@ function createLink(body, apiKey, env = process.env) {
   return { status: 200, body: { url, sig } };
 }
 
-module.exports = { identify, enroll };
+module.exports = { identify, enroll, createLink };

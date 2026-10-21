@@ -32,4 +32,4 @@ function safeEqual(a, b) {
   return x.length === y.length && crypto.timingSafeEqual(x, y);
 }
 
-module.exports = { signId, verifyLink, validContactId };
+module.exports = { signId, verifyLink, validContactId, safeEqual };
