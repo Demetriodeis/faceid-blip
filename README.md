@@ -28,9 +28,9 @@ web/                      front estático (Static Web Apps)
   models/                 pesos: tiny face detector, landmarks tiny, face recognition (~6,7 MB)
   staticwebapp.config.json
 api/                      Azure Functions (Node 20, modelo v4)
-  src/functions/          identify.js, enroll.js
+  src/functions/          identify.js, enroll.js, link.js
   src/lib/                match, store (Blip Bucket / arquivo), blip, handlers, security
-  test/                   15 testes (node --test)
+  test/                   20 testes (node --test)
 ```
 
 ## Variáveis de ambiente (Application Settings da Function)
@@ -43,6 +43,8 @@ api/                      Azure Functions (Node 20, modelo v4)
 | `MATCH_THRESHOLD` | distância máxima para considerar "mesma pessoa" (padrão `0.5`) |
 | `LINK_SECRET` | se definida, só links assinados (`&sig=`) são aceitos — **recomendado** |
 | `REQUIRE_SAME_CONTACT` | `true` = o rosto só identifica se pertence ao contato do link |
+| `LINK_API_KEY` | chave que o bot usa para chamar `/api/link` (header `x-api-key`). **Diferente** do `LINK_SECRET` |
+| `PUBLIC_BASE_URL` | endereço público do site, ex.: `https://<site>.azurestaticapps.net` |
 
 ### Link assinado (recomendado)
 
@@ -53,7 +55,36 @@ Sem `LINK_SECRET`, qualquer pessoa pode trocar o `id` na URL, cadastrar rostos p
 require('node:crypto').createHmac('sha256', LINK_SECRET).update(id).digest('hex');
 ```
 
-Esse cálculo precisa acontecer em quem gera o link (um script/Function sua), não no navegador.
+Esse cálculo nunca acontece no navegador. Para teste manual use o comando acima; no fluxo real, quem gera o link é a rota `/api/link` (próxima seção).
+
+### Gerar o link assinado dentro da Blip (`/api/link`)
+
+O script da Blip não é o lugar para calcular HMAC. Em vez disso, o bot chama a Function e recebe o link pronto.
+
+1. No Azure, cadastre `LINK_API_KEY` (valor aleatório, gere com `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`), `LINK_SECRET` e `PUBLIC_BASE_URL`. Sem as três, a rota responde `503`.
+2. No Builder, antes do passo que envia o link, adicione um bloco de **chamada HTTP** (integração):
+   - Método **POST**, URL `https://<seu-site>.azurestaticapps.net/api/link`
+   - Headers: `Content-Type: application/json` e `x-api-key: <LINK_API_KEY>`
+   - Body: `{"id":"{{contact.identity}}"}`
+3. Resposta: `{ "url": "https://.../?id=...&sig=...", "sig": "..." }`. Guarde o campo `url` numa variável (por exemplo `linkFaceId`) e use essa variável no botão ou na mensagem enviada ao contato.
+4. Se a resposta chegar como texto, um bloco de **script** (ES6) extrai o campo:
+
+```js
+function run(resposta) {
+  const dados = typeof resposta === 'string' ? JSON.parse(resposta) : resposta;
+  return dados.url;
+}
+```
+
+Os nomes exatos dos campos e variáveis do Builder podem variar conforme a sua versão da interface; o que importa é enviar o `id` no corpo, o header `x-api-key` e ler o campo `url` da resposta. Guarde a `LINK_API_KEY` como variável de configuração do bot, nunca em texto visível ao contato.
+
+Exemplo de teste da rota:
+
+```bash
+curl -X POST https://<seu-site>.azurestaticapps.net/api/link \
+  -H "Content-Type: application/json" -H "x-api-key: <LINK_API_KEY>" \
+  -d '{"id":"5511999990000"}'
+```
 
 ## Rodar local
 

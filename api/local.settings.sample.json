@@ -9,6 +9,8 @@
     "BLIP_HTTP_URL": "",
     "BLIP_KEY": "",
     "LINK_SECRET": "",
+    "LINK_API_KEY": "",
+    "PUBLIC_BASE_URL": "",
     "REQUIRE_SAME_CONTACT": "false"
   }
 }
