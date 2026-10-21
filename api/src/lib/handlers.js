@@ -91,4 +91,25 @@ async function enroll(body, { store, env = process.env }) {
   return { status: 201, body: { enrolled: true } };
 }
 
+/**
+ * POST /api/link  (header x-api-key)  { id }
+ * -> { url, sig }
+ * Chamada pelo bot (bloco HTTP da Blip) para obter o link já assinado.
+ * Fica desativada (503) até LINK_API_KEY, LINK_SECRET e PUBLIC_BASE_URL existirem.
+ */
+function createLink(body, apiKey, env = process.env) {
+  if (!env.LINK_API_KEY || !env.LINK_SECRET || !env.PUBLIC_BASE_URL) {
+    return { status: 503, body: { error: 'link_endpoint_disabled' } };
+  }
+  if (!apiKey || !safeEqual(apiKey, env.LINK_API_KEY)) {
+    return { status: 401, body: { error: 'unauthorized' } };
+  }
+  if (!body || !validContactId(body.id)) return { status: 400, body: { error: 'invalid_id' } };
+
+  const sig = signId(body.id, env.LINK_SECRET);
+  const base = env.PUBLIC_BASE_URL.replace(/\/$/, '');
+  const url = `${base}/?id=${encodeURIComponent(body.id)}&sig=${sig}`;
+  return { status: 200, body: { url, sig } };
+}
+
 module.exports = { identify, enroll };

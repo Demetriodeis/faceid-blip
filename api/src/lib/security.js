@@ -25,4 +25,11 @@ function validContactId(id) {
   return typeof id === 'string' && /^[A-Za-z0-9@._:+-]{3,128}$/.test(id);
 }
 
+/** Comparação de strings em tempo constante (para chaves de API). */
+function safeEqual(a, b) {
+  const x = Buffer.from(String(a));
+  const y = Buffer.from(String(b));
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+}
+
 module.exports = { signId, verifyLink, validContactId };
