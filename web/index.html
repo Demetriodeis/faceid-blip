@@ -44,6 +44,8 @@
   .overlay p { margin: 0 0 20px; font-size: 15px; line-height: 1.45; opacity: .9; max-width: 320px; }
   .overlay h2.ok { color: var(--ok); } .overlay h2.err { color: var(--err); }
 
+  .overlay p.hint { font-size: 12.5px; opacity: .65; margin: 14px 0 0; max-width: 290px; }
+
   .spinner { width: 42px; height: 42px; border-radius: 50%; margin-bottom: 18px;
     border: 4px solid rgba(255,255,255,.2); border-top-color: var(--ok); animation: spin 1s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -112,7 +114,9 @@
     <h2 id="resTitle"></h2>
     <p id="resDesc"></p>
     <a class="btn green" id="waBtn" href="#" target="_blank" rel="noopener noreferrer" hidden>Voltar ao WhatsApp</a>
+    <button class="btn ghost" id="closeBtn" type="button" hidden>Fechar janela</button>
     <button class="btn ghost" id="again" type="button" hidden>Tentar novamente</button>
+    <p class="hint" id="closeHint" hidden>Se a janela não fechar, use o botão de fechar do navegador (X ou "Concluir") e volte ao WhatsApp.</p>
   </section>
 </main>
 

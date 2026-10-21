@@ -5,7 +5,7 @@
    só o vetor de 128 números vai para a API. Nenhuma foto é enviada. */
 
 const CFG = Object.assign(
-  { supportWhatsapp: '', holdMsIdentify: 2000, holdMsEnroll: 1200 },
+  { supportWhatsapp: '', autoCloseMs: 3000, holdMsIdentify: 2000, holdMsEnroll: 1200 },
   window.FACEID_CONFIG || {}
 );
 const API = '/api';
@@ -50,7 +50,20 @@ function showBusy(title, desc) {
   $('busyDesc').textContent = desc || '';
   show('busy');
 }
-function showResult({ ok, title, desc, wa, retry }) {
+let autoCloseTimer = null;
+
+/** Tenta fechar a janela. Só funciona em alguns navegadores; senão mostra a dica. */
+function tryClose() {
+  window.close();
+  setTimeout(() => { $('closeHint').hidden = false; }, 400);
+}
+
+function stopCamera() {
+  const stream = video.srcObject;
+  if (stream) stream.getTracks().forEach((t) => t.stop());
+}
+
+function showResult({ ok, title, desc, wa, retry, close }) {
   const t = $('resTitle');
   t.textContent = title;
   t.className = ok ? 'ok' : 'err';
@@ -59,6 +72,10 @@ function showResult({ ok, title, desc, wa, retry }) {
   wab.hidden = !(wa && CFG.supportWhatsapp);
   if (!wab.hidden) wab.href = `https://wa.me/${String(CFG.supportWhatsapp).replace(/\D/g, '')}`;
   $('again').hidden = !retry;
+  $('closeBtn').hidden = !close;
+  $('closeHint').hidden = true;
+  clearTimeout(autoCloseTimer);
+  if (close && CFG.autoCloseMs > 0) autoCloseTimer = setTimeout(tryClose, CFG.autoCloseMs);
   show('result');
 }
 
@@ -185,13 +202,15 @@ async function identifyFlow() {
   const { status, data } = await post('/identify', { descriptor });
 
   if (status === 200 && data.match) {
+    stopCamera(); // fluxo concluído: desliga a câmera
     return showResult({
       ok: true,
       title: `Olá, ${data.name}!`,
       desc: data.messageSent
-        ? 'Identidade confirmada. Enviamos a continuação para o seu WhatsApp.'
-        : 'Identidade confirmada. Volte ao WhatsApp para continuar.',
+        ? 'Identidade confirmada! Enviamos a continuação para o seu WhatsApp. Pode fechar esta janela e voltar para a conversa.'
+        : 'Identidade confirmada! Feche esta janela e volte ao WhatsApp para continuar.',
       wa: true,
+      close: true,
     });
   }
   if (status === 200) {
@@ -259,6 +278,7 @@ async function enrollFlow(name) {
 $('goEnroll').addEventListener('click', () => show('enrollForm'));
 $('retry').addEventListener('click', () => identifyFlow());
 $('again').addEventListener('click', () => identifyFlow());
+$('closeBtn').addEventListener('click', tryClose);
 
 const nameInput = $('name');
 const consent = $('consent');
