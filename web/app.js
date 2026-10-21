@@ -8,6 +8,12 @@ const CFG = Object.assign(
   { supportWhatsapp: '', autoCloseMs: 3000, holdMsIdentify: 2000, holdMsEnroll: 1200 },
   window.FACEID_CONFIG || {}
 );
+// Limites de qualidade da imagem (ajustáveis em config.js > quality).
+const QC = Object.assign(
+  { minScore: 0.7, minLuma: 70, maxLuma: 205, minContrast: 28, minSharp: 30 },
+  CFG.quality || {}
+);
+const DEBUG = new URLSearchParams(location.search).has('debug');
 const API = '/api';
 const MODELS = '/models';
 
@@ -122,6 +128,61 @@ async function startCamera() {
 }
 
 /* ---------- detecção guiada ---------- */
+const qCanvas = document.createElement('canvas');
+qCanvas.width = qCanvas.height = 64;
+const qCtx = qCanvas.getContext('2d', { willReadFrequently: true });
+
+/** Mede luz, contraste e nitidez só na região do rosto (miniatura 64x64). */
+function faceQuality(det) {
+  const W = video.videoWidth;
+  const H = video.videoHeight;
+  const b = det.relativeBox;
+  const sx = Math.max(0, b.x * W);
+  const sy = Math.max(0, b.y * H);
+  const sw = Math.min(b.width * W, W - sx);
+  const sh = Math.min(b.height * H, H - sy);
+  qCtx.drawImage(video, sx, sy, sw, sh, 0, 0, 64, 64);
+  const d = qCtx.getImageData(0, 0, 64, 64).data;
+  const g = new Float32Array(64 * 64);
+  let sum = 0;
+  for (let i = 0; i < g.length; i++) {
+    g[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+    sum += g[i];
+  }
+  const luma = sum / g.length;
+  let v = 0;
+  for (let i = 0; i < g.length; i++) v += (g[i] - luma) ** 2;
+  const contrast = Math.sqrt(v / g.length);
+  // nitidez: variância do laplaciano (borrado/movido = valor baixo)
+  let n = 0;
+  let m = 0;
+  let m2 = 0;
+  for (let y = 1; y < 63; y++) {
+    for (let x = 1; x < 63; x++) {
+      const i = y * 64 + x;
+      const l = 4 * g[i] - g[i - 1] - g[i + 1] - g[i - 64] - g[i + 64];
+      n++;
+      m += l;
+      m2 += l * l;
+    }
+  }
+  const sharp = m2 / n - (m / n) ** 2;
+  return { score: det.score, luma, contrast, sharp };
+}
+
+function judgeQuality(det) {
+  const q = faceQuality(det);
+  if (DEBUG) {
+    console.log('qualidade', { score: +q.score.toFixed(2), luma: Math.round(q.luma), contrast: Math.round(q.contrast), sharp: Math.round(q.sharp) });
+  }
+  if (q.luma < QC.minLuma) return { ok: false, msg: 'Ambiente escuro. Vá para um local mais iluminado', q };
+  if (q.luma > QC.maxLuma) return { ok: false, msg: 'Luz forte demais. Evite luz direta no rosto', q };
+  if (q.contrast < QC.minContrast) return { ok: false, msg: 'Pouca luz no rosto. Fique de frente para a luz', q };
+  if (q.sharp < QC.minSharp) return { ok: false, msg: 'Imagem borrada. Segure o aparelho firme', q };
+  if (q.score < QC.minScore) return { ok: false, msg: 'Rosto pouco nítido. Tire óculos escuros ou boné', q };
+  return { ok: true, q };
+}
+
 function judge(det) {
   if (!det) return { ok: false, msg: 'Posicione o rosto em frente à câmera' };
   const b = det.relativeBox;
@@ -130,7 +191,7 @@ function judge(det) {
   if (Math.abs(cx - 0.5) > 0.12 || Math.abs(cy - 0.5) > 0.14) return { ok: false, msg: 'Centralize o rosto' };
   if (b.width > 0.75) return { ok: false, msg: 'Afaste-se um pouco' };
   if (b.width < 0.28) return { ok: false, msg: 'Aproxime o rosto' };
-  return { ok: true };
+  return judgeQuality(det);
 }
 
 /** Espera o rosto ficar bom e parado por `holdMs`. */
@@ -166,6 +227,13 @@ async function captureDescriptor() {
     .withFaceLandmarks(true)
     .withFaceDescriptor();
   if (!r) throw new Error('no_face');
+  // confere de novo no quadro exato usado para o descritor
+  const v = judge(r.detection);
+  if (!v.ok) {
+    const e = new Error('low_quality');
+    e.userMsg = v.msg;
+    throw e;
+  }
   return Array.from(r.descriptor, (n) => Number(n.toFixed(5)));
 }
 
@@ -195,8 +263,8 @@ async function identifyFlow() {
   let descriptor;
   try {
     descriptor = await captureDescriptor();
-  } catch {
-    return showResult({ ok: false, title: 'Não consegui ler o rosto', desc: 'Tente novamente com boa iluminação.', retry: true });
+  } catch (e) {
+    return showResult({ ok: false, title: 'Não consegui ler o rosto', desc: e.userMsg || 'Tente novamente com boa iluminação.', retry: true });
   }
 
   const { status, data } = await post('/identify', { descriptor });
@@ -246,8 +314,8 @@ async function enrollFlow(name) {
     await waitForStableFace(CFG.holdMsEnroll, title, desc);
     try {
       descriptors.push(await captureDescriptor());
-    } catch {
-      return showResult({ ok: false, title: 'Não consegui ler o rosto', desc: 'Tente novamente com boa iluminação.', retry: true });
+    } catch (e) {
+      return showResult({ ok: false, title: 'Não consegui ler o rosto', desc: e.userMsg || 'Tente novamente com boa iluminação.', retry: true });
     }
     setGuide('');
     await sleep(500);
