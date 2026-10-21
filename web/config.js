@@ -3,7 +3,7 @@ window.FACEID_CONFIG = {
   // Número do WhatsApp do BOT (só dígitos, com DDI, ex.: '5511999998888').
   // Alimenta o botão "Voltar ao WhatsApp", que abre a conversa com o bot e é o
   // jeito mais confiável de sair do navegador interno. Vazio = botão escondido.
-  supportWhatsapp: '553133496299',
+  supportWhatsapp: 'https//wa.me/553133496299',
   // Após a confirmação, tenta fechar a janela sozinho depois deste tempo (ms).
   // 0 desliga. Nem todo navegador permite fechar por script.
   autoCloseMs: 3000,
